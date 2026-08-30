@@ -1,5 +1,6 @@
 // Global State Management
-let currentMainTab = 'register';
+let currentScreen = 'login';
+let currentSection = 'overview';
 let currentVizSubTab = 'grid';
 
 let currentUser = null;
@@ -7,7 +8,7 @@ let allTables = [];
 let selectedTable = 'users';
 let currentPage = 1;
 let currentSearch = '';
-let mobileSidebarOpen = false;
+let sidebarDrawerOpen = false;
 
 // DOM Content Loaded Initializer
 document.addEventListener('DOMContentLoaded', () => {
@@ -16,7 +17,6 @@ document.addEventListener('DOMContentLoaded', () => {
   loadRecentUsers();
   loadTablesList();
 
-  // Health ping interval (every 15s)
   setInterval(checkDbHealth, 15000);
 });
 
@@ -46,49 +46,116 @@ function showToast(message, type = 'success', duration = 4000) {
   }, duration);
 }
 
-// 1. Session Status Check
+// 1. Session Status & View Router
 async function checkSessionStatus() {
   try {
     const res = await fetch('/api/auth/me');
     const data = await res.json();
 
-    const nameDisplay = document.getElementById('session-user-name');
-    const authBtn = document.getElementById('btn-auth-action');
-
     if (data.authenticated && data.user) {
       currentUser = data.user;
-      nameDisplay.textContent = `👤 ${data.user.fullName || data.user.username}`;
-      authBtn.textContent = 'Logout';
+      updateSidebarUserProfile(data.user);
+      showScreen('dashboard');
     } else {
       currentUser = null;
-      nameDisplay.textContent = 'Guest';
-      authBtn.textContent = 'Login';
+      showScreen('login');
     }
   } catch (err) {
     currentUser = null;
+    showScreen('login');
   }
 }
 
-function handleAuthAction() {
-  if (currentUser) {
-    handleLogout();
+function updateSidebarUserProfile(user) {
+  const nameEl = document.getElementById('sidebar-user-name');
+  const roleEl = document.getElementById('sidebar-user-role');
+  const avatarEl = document.getElementById('sidebar-avatar');
+
+  if (nameEl) nameEl.textContent = user.fullName || user.username;
+  if (roleEl) roleEl.textContent = user.role || 'User';
+  if (avatarEl) {
+    const initials = (user.fullName || user.username || 'U').split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+    avatarEl.textContent = initials;
+  }
+}
+
+function showScreen(screen) {
+  currentScreen = screen;
+  document.querySelectorAll('.screen-view').forEach(s => s.classList.remove('active'));
+
+  const activeScreen = document.getElementById(`screen-${screen}`);
+  if (activeScreen) activeScreen.classList.add('active');
+
+  if (screen === 'dashboard') {
+    switchSection(currentSection);
+  }
+}
+
+function switchToRegisterScreen() {
+  showScreen('dashboard');
+  switchSection('register');
+}
+
+// 2. Dashboard Section Router
+function switchSection(sec) {
+  currentSection = sec;
+
+  // Sidebar Menu items
+  document.querySelectorAll('.sidebar-item').forEach(b => b.classList.remove('active'));
+  const sideItem = document.getElementById(`side-nav-${sec}`);
+  if (sideItem) sideItem.classList.add('active');
+
+  // Mobile bottom nav items
+  document.querySelectorAll('.bottom-nav-item').forEach(b => b.classList.remove('active'));
+  const mobItem = document.getElementById(`mob-nav-${sec}`);
+  if (mobItem) mobItem.classList.add('active');
+
+  // Workspace Content Sections
+  document.querySelectorAll('.content-section').forEach(s => s.classList.remove('active'));
+  const activeSec = document.getElementById(`sec-${sec}`);
+  if (activeSec) activeSec.classList.add('active');
+
+  // Section Title
+  const titles = {
+    overview: 'Overview Dashboard',
+    register: 'User Registration',
+    explorer: 'Database Explorer',
+    sql: 'SQL Console'
+  };
+  const titleEl = document.getElementById('page-section-title');
+  if (titleEl) titleEl.textContent = titles[sec] || 'Dashboard';
+
+  // Close mobile drawer if open
+  if (sidebarDrawerOpen) toggleSidebarDrawer();
+
+  if (sec === 'explorer') {
+    loadTablesList();
+  }
+}
+
+function toggleSidebarDrawer() {
+  const drawer = document.getElementById('sidebar-drawer');
+  sidebarDrawerOpen = !sidebarDrawerOpen;
+  if (sidebarDrawerOpen) {
+    drawer.classList.add('active-drawer');
   } else {
-    openLoginModal();
+    drawer.classList.remove('active-drawer');
   }
 }
 
-function openLoginModal() {
-  document.getElementById('login-modal').classList.remove('hidden');
-}
-
-function closeLoginModal() {
-  document.getElementById('login-modal').classList.add('hidden');
-}
-
+// 3. Login & Logout Handlers
 async function handleLoginSubmit(e) {
   e.preventDefault();
   const username = document.getElementById('login-username').value.trim();
   const password = document.getElementById('login-password').value;
+
+  const btnSubmit = document.getElementById('btn-login-submit');
+  const btnText = document.getElementById('btn-login-text');
+  const btnSpinner = document.getElementById('btn-login-spinner');
+
+  btnSubmit.disabled = true;
+  btnText.textContent = 'Signing in...';
+  btnSpinner.classList.remove('hidden');
 
   try {
     const res = await fetch('/api/auth/login', {
@@ -100,11 +167,16 @@ async function handleLoginSubmit(e) {
 
     if (!res.ok) throw new Error(data.error || 'Login failed.');
 
+    currentUser = data.user;
+    updateSidebarUserProfile(data.user);
     showToast(`Welcome back, ${data.user.fullName || data.user.username}!`, 'success');
-    closeLoginModal();
-    checkSessionStatus();
+    showScreen('dashboard');
   } catch (err) {
     showToast(err.message, 'error');
+  } finally {
+    btnSubmit.disabled = false;
+    btnText.textContent = 'Sign In';
+    btnSpinner.classList.add('hidden');
   }
 }
 
@@ -112,15 +184,16 @@ async function handleLogout() {
   try {
     const res = await fetch('/api/auth/logout', { method: 'POST' });
     if (res.ok) {
+      currentUser = null;
       showToast('Logged out successfully.', 'info');
-      checkSessionStatus();
+      showScreen('login');
     }
   } catch (err) {
     showToast('Logout failed.', 'error');
   }
 }
 
-// 2. Health Check
+// 4. Health Check
 async function checkDbHealth() {
   const badge = document.getElementById('db-health-badge');
   const statusText = document.getElementById('db-status-text');
@@ -134,73 +207,21 @@ async function checkDbHealth() {
     if (res.ok && data.status === 'connected') {
       badge.className = 'db-badge connected';
       statusText.textContent = `${data.latencyMs}ms`;
-      metricDbname.textContent = data.database || 'mydata';
-      metricLatency.textContent = `${data.latencyMs} ms`;
+      if (metricDbname) metricDbname.textContent = data.database || 'mydata';
+      if (metricLatency) metricLatency.textContent = `${data.latencyMs} ms`;
     } else {
       badge.className = 'db-badge disconnected';
       statusText.textContent = 'Disconnected';
-      metricLatency.textContent = 'Offline';
+      if (metricLatency) metricLatency.textContent = 'Offline';
     }
   } catch (err) {
     badge.className = 'db-badge disconnected';
     statusText.textContent = 'Offline';
-    metricLatency.textContent = 'Offline';
+    if (metricLatency) metricLatency.textContent = 'Offline';
   }
 }
 
-// Tab Switching
-function switchMainTab(tab) {
-  currentMainTab = tab;
-
-  // Desktop tabs
-  document.querySelectorAll('.nav-tab').forEach(b => b.classList.remove('active'));
-  const dTab = document.getElementById(`tab-btn-${tab}`);
-  if (dTab) dTab.classList.add('active');
-
-  // Mobile bottom tabs
-  document.querySelectorAll('.bottom-nav-item').forEach(b => b.classList.remove('active'));
-  const mTab = document.getElementById(`mob-nav-${tab}`);
-  if (mTab) mTab.classList.add('active');
-
-  // Views
-  document.querySelectorAll('.tab-view').forEach(v => v.classList.remove('active'));
-  document.getElementById(`view-${tab}`).classList.add('active');
-
-  if (tab === 'visualizer') {
-    loadTablesList();
-  }
-}
-
-// Mobile Sidebar Drawer Toggle
-function toggleMobileSidebar() {
-  const drawer = document.getElementById('viz-sidebar-drawer');
-  mobileSidebarOpen = !mobileSidebarOpen;
-  if (mobileSidebarOpen) {
-    drawer.classList.add('active-drawer');
-  } else {
-    drawer.classList.remove('active-drawer');
-  }
-}
-
-// Sub Tab Switching
-function switchVizSubTab(subTab) {
-  currentVizSubTab = subTab;
-
-  document.querySelectorAll('.viz-subtab').forEach(b => b.classList.remove('active'));
-  document.querySelectorAll('.subview-content').forEach(v => v.classList.remove('active'));
-
-  document.getElementById(`subtab-${subTab}`).classList.add('active');
-  document.getElementById(`subview-${subTab}`).classList.add('active');
-
-  const gridToolbar = document.getElementById('grid-toolbar');
-  if (subTab === 'grid') {
-    gridToolbar.style.display = 'flex';
-  } else {
-    gridToolbar.style.display = 'none';
-  }
-}
-
-// 3. Registration Handler
+// 5. User Registration Handler
 async function handleRegister(e) {
   e.preventDefault();
 
@@ -216,7 +237,7 @@ async function handleRegister(e) {
   const btnSpinner = document.getElementById('btn-submit-spinner');
 
   btnSubmit.disabled = true;
-  btnText.textContent = 'Saving to PostgreSQL...';
+  btnText.textContent = 'Saving...';
   btnSpinner.classList.remove('hidden');
 
   try {
@@ -228,9 +249,7 @@ async function handleRegister(e) {
 
     const data = await res.json();
 
-    if (!res.ok) {
-      throw new Error(data.error || 'Failed to register user.');
-    }
+    if (!res.ok) throw new Error(data.error || 'Failed to register user.');
 
     showToast(`User ${data.user.full_name} registered successfully!`, 'success');
     document.getElementById('registration-form').reset();
@@ -247,9 +266,10 @@ async function handleRegister(e) {
   }
 }
 
-// 4. Load Recent Users Feed
+// 6. Recent Users Activity Stream
 async function loadRecentUsers() {
   const container = document.getElementById('recent-users-list');
+  if (!container) return;
 
   try {
     const res = await fetch('/api/tables/users?limit=10');
@@ -257,11 +277,13 @@ async function loadRecentUsers() {
 
     if (!res.ok || !data.rows) {
       container.innerHTML = `<div class="empty-state">No users registered yet.</div>`;
-      document.getElementById('metric-users-count').textContent = '0';
+      const userCountEl = document.getElementById('metric-users-count');
+      if (userCountEl) userCountEl.textContent = '0';
       return;
     }
 
-    document.getElementById('metric-users-count').textContent = data.pagination.totalRows || data.rows.length;
+    const userCountEl = document.getElementById('metric-users-count');
+    if (userCountEl) userCountEl.textContent = data.pagination.totalRows || data.rows.length;
 
     if (data.rows.length === 0) {
       container.innerHTML = `<div class="empty-state">No users registered yet. Fill out the form to add one!</div>`;
@@ -298,10 +320,11 @@ async function loadRecentUsers() {
   }
 }
 
-// 5. Load Tables List
+// 7. Database Explorer & Tables List
 async function loadTablesList() {
   const container = document.getElementById('tables-list-container');
   const metricTablesCount = document.getElementById('metric-tables-count');
+  if (!container) return;
 
   try {
     const res = await fetch('/api/tables');
@@ -313,10 +336,10 @@ async function loadTablesList() {
     }
 
     allTables = data.tables;
-    metricTablesCount.textContent = allTables.length;
+    if (metricTablesCount) metricTablesCount.textContent = allTables.length;
 
     if (allTables.length === 0) {
-      container.innerHTML = `<li class="empty-list">No tables found in public schema. Click "Auto-Create Users Table"!</li>`;
+      container.innerHTML = `<li class="empty-list">No tables found. Click "Re-Verify Database Schema"!</li>`;
       return;
     }
 
@@ -348,24 +371,19 @@ function filterTablesList() {
   renderTablesList(filtered);
 }
 
-// Select Table
 function selectTable(tableName) {
   selectedTable = tableName;
   currentPage = 1;
   currentSearch = '';
-  document.getElementById('grid-search').value = '';
-
-  const mobName = document.getElementById('mobile-selected-table-name');
-  if (mobName) mobName.textContent = tableName;
+  const searchEl = document.getElementById('grid-search');
+  if (searchEl) searchEl.value = '';
 
   document.querySelectorAll('.table-item').forEach(el => el.classList.remove('active'));
   const activeEl = document.getElementById(`table-item-${tableName}`);
   if (activeEl) activeEl.classList.add('active');
 
-  document.getElementById('schema-table-title').textContent = tableName;
-
-  // Close mobile drawer if open
-  if (mobileSidebarOpen) toggleMobileSidebar();
+  const titleEl = document.getElementById('schema-table-title');
+  if (titleEl) titleEl.textContent = tableName;
 
   loadSelectedTableData();
 }
@@ -379,7 +397,7 @@ async function loadSelectedTableData() {
   const pageDisplay = document.getElementById('page-num-display');
   const pagInfo = document.getElementById('pagination-info');
 
-  gridBody.innerHTML = `<tr><td class="empty-cell">Loading data for '${selectedTable}'...</td></tr>`;
+  if (gridBody) gridBody.innerHTML = `<tr><td class="empty-cell">Loading data for '${selectedTable}'...</td></tr>`;
 
   try {
     const url = `/api/tables/${selectedTable}?page=${currentPage}&limit=25&search=${encodeURIComponent(currentSearch)}`;
@@ -390,46 +408,70 @@ async function loadSelectedTableData() {
 
     const { columns, primaryKeys, rows, pagination } = data;
 
-    schemaBody.innerHTML = columns.map(c => `
-      <tr>
-        <td style="font-weight: 700; color: var(--text-main); font-family: var(--font-mono);">${escapeHtml(c.column_name)}</td>
-        <td><span class="highlight-text">${escapeHtml(c.data_type)}</span> ${c.character_maximum_length ? `(${c.character_maximum_length})` : ''}</td>
-        <td>${c.is_nullable === 'YES' ? 'YES' : '<span style="color:var(--amber);">NO</span>'}</td>
-        <td>${primaryKeys.includes(c.column_name) ? '<span class="pk-badge">PRIMARY KEY</span>' : '—'}</td>
-        <td style="color: var(--text-dim); font-family: var(--font-mono);">${escapeHtml(c.column_default || 'NULL')}</td>
-      </tr>
-    `).join('');
-
-    gridHead.innerHTML = `
-      <tr>
-        ${columns.map(c => `<th>${escapeHtml(c.column_name)} ${primaryKeys.includes(c.column_name) ? '🔑' : ''}</th>`).join('')}
-      </tr>
-    `;
-
-    if (rows.length === 0) {
-      gridBody.innerHTML = `<tr><td colspan="${columns.length}" class="empty-cell">No records found in table '${selectedTable}'.</td></tr>`;
-    } else {
-      gridBody.innerHTML = rows.map(r => `
+    if (schemaBody) {
+      schemaBody.innerHTML = columns.map(c => `
         <tr>
-          ${columns.map(c => {
-            const val = r[c.column_name];
-            if (val === null || val === undefined) return `<td><span class="null-val">null</span></td>`;
-            if (typeof val === 'object') return `<td><code>${escapeHtml(JSON.stringify(val))}</code></td>`;
-            return `<td>${escapeHtml(String(val))}</td>`;
-          }).join('')}
+          <td style="font-weight: 700; color: var(--text-main); font-family: var(--font-mono);">${escapeHtml(c.column_name)}</td>
+          <td><span class="highlight-text">${escapeHtml(c.data_type)}</span> ${c.character_maximum_length ? `(${c.character_maximum_length})` : ''}</td>
+          <td>${c.is_nullable === 'YES' ? 'YES' : '<span style="color:var(--amber);">NO</span>'}</td>
+          <td>${primaryKeys.includes(c.column_name) ? '<span class="pk-badge">PRIMARY KEY</span>' : '—'}</td>
+          <td style="color: var(--text-dim); font-family: var(--font-mono);">${escapeHtml(c.column_default || 'NULL')}</td>
         </tr>
       `).join('');
     }
 
-    pageDisplay.textContent = `Page ${pagination.page} of ${pagination.totalPages}`;
-    pagInfo.textContent = `Showing ${rows.length} of ${pagination.totalRows} total rows`;
+    if (gridHead) {
+      gridHead.innerHTML = `
+        <tr>
+          ${columns.map(c => `<th>${escapeHtml(c.column_name)} ${primaryKeys.includes(c.column_name) ? '🔑' : ''}</th>`).join('')}
+        </tr>
+      `;
+    }
 
-    document.getElementById('btn-prev-page').disabled = pagination.page <= 1;
-    document.getElementById('btn-next-page').disabled = pagination.page >= pagination.totalPages;
+    if (gridBody) {
+      if (rows.length === 0) {
+        gridBody.innerHTML = `<tr><td colspan="${columns.length}" class="empty-cell">No records found in table '${selectedTable}'.</td></tr>`;
+      } else {
+        gridBody.innerHTML = rows.map(r => `
+          <tr>
+            ${columns.map(c => {
+              const val = r[c.column_name];
+              if (val === null || val === undefined) return `<td><span class="null-val">null</span></td>`;
+              if (typeof val === 'object') return `<td><code>${escapeHtml(JSON.stringify(val))}</code></td>`;
+              return `<td>${escapeHtml(String(val))}</td>`;
+            }).join('')}
+          </tr>
+        `).join('');
+      }
+    }
+
+    if (pageDisplay) pageDisplay.textContent = `Page ${pagination.page} of ${pagination.totalPages}`;
+    if (pagInfo) pagInfo.textContent = `Showing ${rows.length} of ${pagination.totalRows} total rows`;
+
+    const prevBtn = document.getElementById('btn-prev-page');
+    const nextBtn = document.getElementById('btn-next-page');
+    if (prevBtn) prevBtn.disabled = pagination.page <= 1;
+    if (nextBtn) nextBtn.disabled = pagination.page >= pagination.totalPages;
 
   } catch (err) {
-    gridBody.innerHTML = `<tr><td class="empty-cell" style="color: var(--rose);">${escapeHtml(err.message)}</td></tr>`;
-    schemaBody.innerHTML = `<tr><td colspan="5" class="empty-cell">${escapeHtml(err.message)}</td></tr>`;
+    if (gridBody) gridBody.innerHTML = `<tr><td class="empty-cell" style="color: var(--rose);">${escapeHtml(err.message)}</td></tr>`;
+    if (schemaBody) schemaBody.innerHTML = `<tr><td colspan="5" class="empty-cell">${escapeHtml(err.message)}</td></tr>`;
+  }
+}
+
+function switchVizSubTab(subTab) {
+  currentVizSubTab = subTab;
+  document.querySelectorAll('.viz-subtab').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.subview-content').forEach(v => v.classList.remove('active'));
+
+  const tabEl = document.getElementById(`subtab-${subTab}`);
+  const viewEl = document.getElementById(`subview-${subTab}`);
+  if (tabEl) tabEl.classList.add('active');
+  if (viewEl) viewEl.classList.add('active');
+
+  const gridToolbar = document.getElementById('grid-toolbar');
+  if (gridToolbar) {
+    gridToolbar.style.display = (subTab === 'grid') ? 'flex' : 'none';
   }
 }
 
@@ -515,7 +557,7 @@ async function initSampleDatabase() {
     const res = await fetch('/api/init-db', { method: 'POST' });
     const data = await res.json();
     if (res.ok) {
-      showToast('Schema initialized in PostgreSQL!', 'success');
+      showToast('Schema verified in PostgreSQL!', 'success');
       loadTablesList();
     } else {
       showToast(data.error, 'error');
