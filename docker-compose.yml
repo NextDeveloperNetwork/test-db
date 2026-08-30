@@ -13,6 +13,7 @@ services:
     environment:
       - PORT=3000
       - DATABASE_URL=${DATABASE_URL:-postgresql://myapp:arial123@192.168.1.40:5432/mydata}
+      - SESSION_SECRET=${SESSION_SECRET:-postgreflow-proxmox-secret-key-32bytes}
       - NODE_ENV=production
 
   # Cloudflare Tunnel for Secure Internet Access (Zero Open Ports)

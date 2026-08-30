@@ -2,13 +2,16 @@
 let currentMainTab = 'register';
 let currentVizSubTab = 'grid';
 
+let currentUser = null;
 let allTables = [];
 let selectedTable = 'users';
 let currentPage = 1;
 let currentSearch = '';
+let mobileSidebarOpen = false;
 
 // DOM Content Loaded Initializer
 document.addEventListener('DOMContentLoaded', () => {
+  checkSessionStatus();
   checkDbHealth();
   loadRecentUsers();
   loadTablesList();
@@ -37,13 +40,87 @@ function showToast(message, type = 'success', duration = 4000) {
 
   setTimeout(() => {
     toast.style.opacity = '0';
-    toast.style.transform = 'translateX(100%)';
+    toast.style.transform = 'translateY(10px)';
     toast.style.transition = 'all 0.3s ease';
     setTimeout(() => toast.remove(), 300);
   }, duration);
 }
 
-// 1. Health Check
+// 1. Session Status Check
+async function checkSessionStatus() {
+  try {
+    const res = await fetch('/api/auth/me');
+    const data = await res.json();
+
+    const nameDisplay = document.getElementById('session-user-name');
+    const authBtn = document.getElementById('btn-auth-action');
+
+    if (data.authenticated && data.user) {
+      currentUser = data.user;
+      nameDisplay.textContent = `👤 ${data.user.fullName || data.user.username}`;
+      authBtn.textContent = 'Logout';
+    } else {
+      currentUser = null;
+      nameDisplay.textContent = 'Guest';
+      authBtn.textContent = 'Login';
+    }
+  } catch (err) {
+    currentUser = null;
+  }
+}
+
+function handleAuthAction() {
+  if (currentUser) {
+    handleLogout();
+  } else {
+    openLoginModal();
+  }
+}
+
+function openLoginModal() {
+  document.getElementById('login-modal').classList.remove('hidden');
+}
+
+function closeLoginModal() {
+  document.getElementById('login-modal').classList.add('hidden');
+}
+
+async function handleLoginSubmit(e) {
+  e.preventDefault();
+  const username = document.getElementById('login-username').value.trim();
+  const password = document.getElementById('login-password').value;
+
+  try {
+    const res = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password })
+    });
+    const data = await res.json();
+
+    if (!res.ok) throw new Error(data.error || 'Login failed.');
+
+    showToast(`Welcome back, ${data.user.fullName || data.user.username}!`, 'success');
+    closeLoginModal();
+    checkSessionStatus();
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+}
+
+async function handleLogout() {
+  try {
+    const res = await fetch('/api/auth/logout', { method: 'POST' });
+    if (res.ok) {
+      showToast('Logged out successfully.', 'info');
+      checkSessionStatus();
+    }
+  } catch (err) {
+    showToast('Logout failed.', 'error');
+  }
+}
+
+// 2. Health Check
 async function checkDbHealth() {
   const badge = document.getElementById('db-health-badge');
   const statusText = document.getElementById('db-status-text');
@@ -56,7 +133,7 @@ async function checkDbHealth() {
 
     if (res.ok && data.status === 'connected') {
       badge.className = 'db-badge connected';
-      statusText.textContent = `Connected (${data.latencyMs}ms)`;
+      statusText.textContent = `${data.latencyMs}ms`;
       metricDbname.textContent = data.database || 'mydata';
       metricLatency.textContent = `${data.latencyMs} ms`;
     } else {
@@ -66,19 +143,27 @@ async function checkDbHealth() {
     }
   } catch (err) {
     badge.className = 'db-badge disconnected';
-    statusText.textContent = 'Server Offline';
+    statusText.textContent = 'Offline';
     metricLatency.textContent = 'Offline';
   }
 }
 
-// Tab Switching (Main)
+// Tab Switching
 function switchMainTab(tab) {
   currentMainTab = tab;
 
+  // Desktop tabs
   document.querySelectorAll('.nav-tab').forEach(b => b.classList.remove('active'));
-  document.querySelectorAll('.tab-view').forEach(v => v.classList.remove('active'));
+  const dTab = document.getElementById(`tab-btn-${tab}`);
+  if (dTab) dTab.classList.add('active');
 
-  document.getElementById(`tab-btn-${tab}`).classList.add('active');
+  // Mobile bottom tabs
+  document.querySelectorAll('.bottom-nav-item').forEach(b => b.classList.remove('active'));
+  const mTab = document.getElementById(`mob-nav-${tab}`);
+  if (mTab) mTab.classList.add('active');
+
+  // Views
+  document.querySelectorAll('.tab-view').forEach(v => v.classList.remove('active'));
   document.getElementById(`view-${tab}`).classList.add('active');
 
   if (tab === 'visualizer') {
@@ -86,7 +171,18 @@ function switchMainTab(tab) {
   }
 }
 
-// Sub Tab Switching (Visualizer Workspace)
+// Mobile Sidebar Drawer Toggle
+function toggleMobileSidebar() {
+  const drawer = document.getElementById('viz-sidebar-drawer');
+  mobileSidebarOpen = !mobileSidebarOpen;
+  if (mobileSidebarOpen) {
+    drawer.classList.add('active-drawer');
+  } else {
+    drawer.classList.remove('active-drawer');
+  }
+}
+
+// Sub Tab Switching
 function switchVizSubTab(subTab) {
   currentVizSubTab = subTab;
 
@@ -104,13 +200,14 @@ function switchVizSubTab(subTab) {
   }
 }
 
-// 2. User Registration Handler
+// 3. Registration Handler
 async function handleRegister(e) {
   e.preventDefault();
 
   const fullName = document.getElementById('full_name').value.trim();
   const email = document.getElementById('email').value.trim();
   const username = document.getElementById('username').value.trim();
+  const password = document.getElementById('password').value;
   const role = document.getElementById('role').value;
   const bio = document.getElementById('bio').value.trim();
 
@@ -126,7 +223,7 @@ async function handleRegister(e) {
     const res = await fetch('/api/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ full_name: fullName, email, username, role, bio })
+      body: JSON.stringify({ full_name: fullName, email, username, password, role, bio })
     });
 
     const data = await res.json();
@@ -138,7 +235,7 @@ async function handleRegister(e) {
     showToast(`User ${data.user.full_name} registered successfully!`, 'success');
     document.getElementById('registration-form').reset();
     
-    // Refresh feeds and tables
+    checkSessionStatus();
     loadRecentUsers();
     loadTablesList();
   } catch (err) {
@@ -150,7 +247,7 @@ async function handleRegister(e) {
   }
 }
 
-// 3. Load Recent Users Feed
+// 4. Load Recent Users Feed
 async function loadRecentUsers() {
   const container = document.getElementById('recent-users-list');
 
@@ -159,7 +256,7 @@ async function loadRecentUsers() {
     const data = await res.json();
 
     if (!res.ok || !data.rows) {
-      container.innerHTML = `<div class="empty-state">No users registered yet. Fill the form to add one!</div>`;
+      container.innerHTML = `<div class="empty-state">No users registered yet.</div>`;
       document.getElementById('metric-users-count').textContent = '0';
       return;
     }
@@ -167,7 +264,7 @@ async function loadRecentUsers() {
     document.getElementById('metric-users-count').textContent = data.pagination.totalRows || data.rows.length;
 
     if (data.rows.length === 0) {
-      container.innerHTML = `<div class="empty-state">No users registered yet. Fill out the form on the left to register your first record!</div>`;
+      container.innerHTML = `<div class="empty-state">No users registered yet. Fill out the form to add one!</div>`;
       return;
     }
 
@@ -191,7 +288,7 @@ async function loadRecentUsers() {
           </div>
           <div style="text-align: right;">
             <span class="badge badge-active">${escapeHtml(user.status || 'Active')}</span>
-            <div style="font-size: 0.72rem; color: var(--text-dim); margin-top: 4px;">${createdAt}</div>
+            <div style="font-size: 0.7rem; color: var(--text-dim); margin-top: 4px;">${createdAt}</div>
           </div>
         </div>
       `;
@@ -201,7 +298,7 @@ async function loadRecentUsers() {
   }
 }
 
-// 4. Load Tables List (Visualizer Sidebar)
+// 5. Load Tables List
 async function loadTablesList() {
   const container = document.getElementById('tables-list-container');
   const metricTablesCount = document.getElementById('metric-tables-count');
@@ -219,13 +316,12 @@ async function loadTablesList() {
     metricTablesCount.textContent = allTables.length;
 
     if (allTables.length === 0) {
-      container.innerHTML = `<li class="empty-list">No tables found in public schema. Click "Auto-Create Users Table" below!</li>`;
+      container.innerHTML = `<li class="empty-list">No tables found in public schema. Click "Auto-Create Users Table"!</li>`;
       return;
     }
 
     renderTablesList(allTables);
 
-    // Default selection to 'users' if available, otherwise first table
     if (!selectedTable || !allTables.some(t => t.table_name === selectedTable)) {
       selectedTable = allTables.some(t => t.table_name === 'users') ? 'users' : allTables[0].table_name;
     }
@@ -252,18 +348,24 @@ function filterTablesList() {
   renderTablesList(filtered);
 }
 
-// 5. Select Table & Load Data Grid & Schema
+// Select Table
 function selectTable(tableName) {
   selectedTable = tableName;
   currentPage = 1;
   currentSearch = '';
   document.getElementById('grid-search').value = '';
 
+  const mobName = document.getElementById('mobile-selected-table-name');
+  if (mobName) mobName.textContent = tableName;
+
   document.querySelectorAll('.table-item').forEach(el => el.classList.remove('active'));
   const activeEl = document.getElementById(`table-item-${tableName}`);
   if (activeEl) activeEl.classList.add('active');
 
   document.getElementById('schema-table-title').textContent = tableName;
+
+  // Close mobile drawer if open
+  if (mobileSidebarOpen) toggleMobileSidebar();
 
   loadSelectedTableData();
 }
@@ -277,20 +379,17 @@ async function loadSelectedTableData() {
   const pageDisplay = document.getElementById('page-num-display');
   const pagInfo = document.getElementById('pagination-info');
 
-  gridBody.innerHTML = `<tr><td class="empty-cell">Loading dynamic data for '${selectedTable}'...</td></tr>`;
+  gridBody.innerHTML = `<tr><td class="empty-cell">Loading data for '${selectedTable}'...</td></tr>`;
 
   try {
     const url = `/api/tables/${selectedTable}?page=${currentPage}&limit=25&search=${encodeURIComponent(currentSearch)}`;
     const res = await fetch(url);
     const data = await res.json();
 
-    if (!res.ok) {
-      throw new Error(data.error || 'Failed to fetch table contents.');
-    }
+    if (!res.ok) throw new Error(data.error || 'Failed to fetch table contents.');
 
     const { columns, primaryKeys, rows, pagination } = data;
 
-    // Render Schema Inspector
     schemaBody.innerHTML = columns.map(c => `
       <tr>
         <td style="font-weight: 700; color: var(--text-main); font-family: var(--font-mono);">${escapeHtml(c.column_name)}</td>
@@ -301,14 +400,12 @@ async function loadSelectedTableData() {
       </tr>
     `).join('');
 
-    // Render Data Grid Head
     gridHead.innerHTML = `
       <tr>
         ${columns.map(c => `<th>${escapeHtml(c.column_name)} ${primaryKeys.includes(c.column_name) ? '🔑' : ''}</th>`).join('')}
       </tr>
     `;
 
-    // Render Data Grid Body
     if (rows.length === 0) {
       gridBody.innerHTML = `<tr><td colspan="${columns.length}" class="empty-cell">No records found in table '${selectedTable}'.</td></tr>`;
     } else {
@@ -316,19 +413,14 @@ async function loadSelectedTableData() {
         <tr>
           ${columns.map(c => {
             const val = r[c.column_name];
-            if (val === null || val === undefined) {
-              return `<td><span class="null-val">null</span></td>`;
-            }
-            if (typeof val === 'object') {
-              return `<td><code>${escapeHtml(JSON.stringify(val))}</code></td>`;
-            }
+            if (val === null || val === undefined) return `<td><span class="null-val">null</span></td>`;
+            if (typeof val === 'object') return `<td><code>${escapeHtml(JSON.stringify(val))}</code></td>`;
             return `<td>${escapeHtml(String(val))}</td>`;
           }).join('')}
         </tr>
       `).join('');
     }
 
-    // Pagination update
     pageDisplay.textContent = `Page ${pagination.page} of ${pagination.totalPages}`;
     pagInfo.textContent = `Showing ${rows.length} of ${pagination.totalRows} total rows`;
 
@@ -355,7 +447,6 @@ function changePage(delta) {
   loadSelectedTableData();
 }
 
-// 6. SQL Console Executor
 function setSqlQuery(sql) {
   document.getElementById('sql-editor').value = sql;
 }
@@ -371,7 +462,7 @@ async function executeCustomSql() {
   const meta = document.getElementById('sql-meta');
 
   meta.textContent = 'Executing...';
-  container.innerHTML = `<div class="empty-state">Running query on Proxmox PostgreSQL...</div>`;
+  container.innerHTML = `<div class="empty-state">Running query...</div>`;
 
   try {
     const res = await fetch('/api/query', {
@@ -381,10 +472,7 @@ async function executeCustomSql() {
     });
 
     const data = await res.json();
-
-    if (!res.ok) {
-      throw new Error(data.error || 'SQL Execution error');
-    }
+    if (!res.ok) throw new Error(data.error || 'SQL Execution error');
 
     meta.textContent = `Command: ${data.command || 'SELECT'} | Rows: ${data.rowCount || data.rows.length} | Time: ${data.executionTimeMs} ms`;
 
@@ -415,7 +503,6 @@ async function executeCustomSql() {
       </table>
     `;
 
-    // Refresh table list in case tables were modified/created
     loadTablesList();
   } catch (err) {
     meta.textContent = 'Execution Failed';
@@ -423,13 +510,12 @@ async function executeCustomSql() {
   }
 }
 
-// 7. Auto-Create Users Table Trigger
 async function initSampleDatabase() {
   try {
     const res = await fetch('/api/init-db', { method: 'POST' });
     const data = await res.json();
     if (res.ok) {
-      showToast('Users table initialized in PostgreSQL!', 'success');
+      showToast('Schema initialized in PostgreSQL!', 'success');
       loadTablesList();
     } else {
       showToast(data.error, 'error');
@@ -439,7 +525,6 @@ async function initSampleDatabase() {
   }
 }
 
-// Utility: HTML Escaper
 function escapeHtml(str) {
   if (typeof str !== 'string') return str;
   return str
