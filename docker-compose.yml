@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  # PostgreFlow Node.js App
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: postgres-form-app
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - DATABASE_URL=${DATABASE_URL:-postgresql://myapp:arial123@192.168.1.40:5432/mydata}
+      - NODE_ENV=production
+    volumes:
+      # Optional volume mount for live development file syncing
+      - ./public:/app/public:ro
+
+  # Cloudflare Tunnel for Secure Internet Access (Zero Open Ports)
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: postgres-form-tunnel
+    restart: unless-stopped
+    depends_on:
+      - app
+    # If TUNNEL_TOKEN is set in .env, connects to custom domain; otherwise creates instant Quick Tunnel URL
+    command: >
+      tunnel --no-autoupdate run --token ${TUNNEL_TOKEN:-""}
+      http://app:3000
+    environment:
+      - TUNNEL_TOKEN=${TUNNEL_TOKEN:-""}

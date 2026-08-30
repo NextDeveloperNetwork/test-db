@@ -1,0 +1,35 @@
+// Prisma Schema for Proxmox PostgreSQL Database
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// User Model mapped to 'users' table in public schema
+model User {
+  id        Int      @id @default(autoincrement())
+  fullName  String   @map("full_name") @db.VarChar(100)
+  email     String   @unique @db.VarChar(150)
+  username  String   @unique @db.VarChar(50)
+  role      String?  @default("User") @db.VarChar(50)
+  status    String?  @default("Active") @db.VarChar(20)
+  bio       String?  @db.Text
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@map("users")
+}
+
+// Example additional model: Projects (you can add more models here!)
+model Project {
+  id          Int      @id @default(autoincrement())
+  name        String   @db.VarChar(100)
+  description String?  @db.Text
+  status      String?  @default("Planning") @db.VarChar(50)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@map("projects")
+}

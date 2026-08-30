@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PostgreFlow — Proxmox DB Form & Visualizer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app-background"></div>
+  
+  <!-- Header / Navigation -->
+  <header class="app-header">
+    <div class="brand">
+      <div class="brand-logo">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+        </svg>
+      </div>
+      <div class="brand-text">
+        <span class="brand-title">PostgreFlow</span>
+        <span class="brand-subtitle">Proxmox PostgreSQL Manager</span>
+      </div>
+    </div>
+
+    <nav class="nav-tabs">
+      <button class="nav-tab active" id="tab-btn-register" onclick="switchMainTab('register')">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+          <circle cx="8.5" cy="7" r="4"></circle>
+          <line x1="20" y1="8" x2="20" y2="14"></line>
+          <line x1="17" y1="11" x2="23" y2="11"></line>
+        </svg>
+        Register User
+      </button>
+      <button class="nav-tab" id="tab-btn-visualizer" onclick="switchMainTab('visualizer')">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+          <line x1="3" y1="9" x2="21" y2="9"></line>
+          <line x1="9" y1="21" x2="9" y2="9"></line>
+        </svg>
+        Database Visualizer
+      </button>
+    </nav>
+
+    <div class="header-status">
+      <div class="db-badge" id="db-health-badge">
+        <span class="status-dot pulsing"></span>
+        <span id="db-status-text">Connecting...</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="main-content">
+    
+    <!-- TAB 1: REGISTRATION FORM -->
+    <section class="tab-view active" id="view-register">
+      <div class="register-grid">
+        <!-- Form Card -->
+        <div class="glass-card form-card">
+          <div class="card-header">
+            <h2>User Registration</h2>
+            <p>Insert records directly into your Proxmox <code>mydata</code> PostgreSQL database.</p>
+          </div>
+
+          <form id="registration-form" onsubmit="handleRegister(event)">
+            <div class="form-group">
+              <label for="full_name">Full Name <span class="req">*</span></label>
+              <div class="input-wrapper">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                <input type="text" id="full_name" placeholder="e.g. Alex Morgan" required />
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label for="email">Email Address <span class="req">*</span></label>
+                <div class="input-wrapper">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                  <input type="email" id="email" placeholder="alex@company.com" required />
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label for="username">Username <span class="req">*</span></label>
+                <div class="input-wrapper">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-3.92 7.94"/></svg>
+                  <input type="text" id="username" placeholder="alexm" required />
+                </div>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="role">Assigned Role</label>
+              <div class="select-wrapper">
+                <select id="role">
+                  <option value="User">User</option>
+                  <option value="Developer">Developer</option>
+                  <option value="Analyst">Analyst</option>
+                  <option value="Admin">Administrator</option>
+                </select>
+                <svg class="select-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="bio">Bio / Notes</label>
+              <textarea id="bio" rows="3" placeholder="Additional user bio, notes or background..."></textarea>
+            </div>
+
+            <button type="submit" class="btn btn-primary btn-block" id="btn-submit-reg">
+              <span id="btn-submit-text">Register User</span>
+              <div class="spinner hidden" id="btn-submit-spinner"></div>
+            </button>
+          </form>
+        </div>
+
+        <!-- Live Feed Card -->
+        <div class="glass-card feed-card">
+          <div class="card-header flex-between">
+            <div>
+              <h2>Recent Registrations</h2>
+              <p>Live stream from PostgreSQL <code>users</code> table</p>
+            </div>
+            <button class="btn btn-icon" onclick="loadRecentUsers()" title="Refresh Feed">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+            </button>
+          </div>
+
+          <div class="recent-users-container" id="recent-users-list">
+            <div class="empty-state">Loading registered records...</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 2: DATABASE VISUALIZER -->
+    <section class="tab-view" id="view-visualizer">
+      
+      <!-- Metrics Bar -->
+      <div class="metrics-grid">
+        <div class="metric-card glass-card">
+          <div class="metric-icon cyan">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+          </div>
+          <div class="metric-info">
+            <span class="metric-label">Database Name</span>
+            <span class="metric-value" id="metric-dbname">mydata</span>
+          </div>
+        </div>
+
+        <div class="metric-card glass-card">
+          <div class="metric-icon indigo">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>
+          </div>
+          <div class="metric-info">
+            <span class="metric-label">Total Tables</span>
+            <span class="metric-value" id="metric-tables-count">0</span>
+          </div>
+        </div>
+
+        <div class="metric-card glass-card">
+          <div class="metric-icon green">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          </div>
+          <div class="metric-info">
+            <span class="metric-label">Registered Users</span>
+            <span class="metric-value" id="metric-users-count">0</span>
+          </div>
+        </div>
+
+        <div class="metric-card glass-card">
+          <div class="metric-icon violet">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+          </div>
+          <div class="metric-info">
+            <span class="metric-label">Ping Latency</span>
+            <span class="metric-value" id="metric-latency">-- ms</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Visualizer Workspace Layout -->
+      <div class="viz-workspace">
+        
+        <!-- Sidebar Table Picker -->
+        <aside class="glass-card viz-sidebar">
+          <div class="sidebar-header">
+            <h3>Tables in <code>public</code></h3>
+            <button class="btn btn-xs btn-outline" onclick="loadTablesList()" title="Refresh tables">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+            </button>
+          </div>
+
+          <div class="sidebar-search">
+            <input type="text" id="table-search-input" placeholder="Search tables..." oninput="filterTablesList()" />
+          </div>
+
+          <ul class="tables-list" id="tables-list-container">
+            <li class="empty-list">Loading tables...</li>
+          </ul>
+
+          <div class="sidebar-footer">
+            <button class="btn btn-secondary btn-sm btn-block" onclick="initSampleDatabase()">
+              ⚡ Auto-Create Users Table
+            </button>
+          </div>
+        </aside>
+
+        <!-- Main Data View -->
+        <div class="glass-card viz-main">
+          
+          <!-- Sub Navigation Tabs -->
+          <div class="viz-tabs-bar">
+            <div class="viz-subtabs">
+              <button class="viz-subtab active" id="subtab-grid" onclick="switchVizSubTab('grid')">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><grid line x1="3" y1="3" x2="21" y2="21"/><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
+                Data Grid
+              </button>
+              <button class="viz-subtab" id="subtab-schema" onclick="switchVizSubTab('schema')">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                Schema Inspector
+              </button>
+              <button class="viz-subtab" id="subtab-sql" onclick="switchVizSubTab('sql')">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+                SQL Console
+              </button>
+            </div>
+
+            <div class="viz-toolbar" id="grid-toolbar">
+              <div class="search-box">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                <input type="text" id="grid-search" placeholder="Search rows in table..." onkeyup="handleGridSearch(event)" />
+              </div>
+              <button class="btn btn-sm btn-secondary" onclick="loadSelectedTableData()">Refresh Data</button>
+            </div>
+          </div>
+
+          <!-- SUB-VIEW 1: DATA GRID -->
+          <div class="subview-content active" id="subview-grid">
+            <div class="table-scroll-wrapper">
+              <table class="data-table" id="data-grid-table">
+                <thead id="data-grid-head">
+                  <tr><th>Select a table from the sidebar</th></tr>
+                </thead>
+                <tbody id="data-grid-body">
+                  <tr><td class="empty-cell">No table selected</td></tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="pagination-bar" id="pagination-bar">
+              <span class="pagination-info" id="pagination-info">Showing 0 rows</span>
+              <div class="pagination-controls">
+                <button class="btn btn-xs btn-outline" id="btn-prev-page" onclick="changePage(-1)" disabled>Previous</button>
+                <span id="page-num-display">Page 1</span>
+                <button class="btn btn-xs btn-outline" id="btn-next-page" onclick="changePage(1)" disabled>Next</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- SUB-VIEW 2: SCHEMA INSPECTOR -->
+          <div class="subview-content" id="subview-schema">
+            <div class="schema-container">
+              <div class="schema-header-info">
+                <h3>Table Schema: <span id="schema-table-title" class="highlight-text">--</span></h3>
+                <p>Column definitions, PostgreSQL data types, and primary key constraints</p>
+              </div>
+              
+              <table class="data-table schema-table">
+                <thead>
+                  <tr>
+                    <th>Column Name</th>
+                    <th>Data Type</th>
+                    <th>Nullable</th>
+                    <th>Primary Key</th>
+                    <th>Default Value</th>
+                  </tr>
+                </thead>
+                <tbody id="schema-table-body">
+                  <tr><td colspan="5" class="empty-cell">Select a table to inspect schema</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- SUB-VIEW 3: SQL CONSOLE -->
+          <div class="subview-content" id="subview-sql">
+            <div class="sql-console-container">
+              <div class="sql-toolbar">
+                <span class="sql-title">PostgreSQL Query Runner</span>
+                <div class="sql-presets">
+                  <span class="preset-label">Quick Presets:</span>
+                  <button class="btn btn-xs btn-outline" onclick="setSqlQuery('SELECT * FROM users ORDER BY id DESC LIMIT 50;')">SELECT users</button>
+                  <button class="btn btn-xs btn-outline" onclick="setSqlQuery('SELECT role, COUNT(*) FROM users GROUP BY role;')">Count by Role</button>
+                  <button class="btn btn-xs btn-outline" onclick="setSqlQuery('SELECT current_database(), version();')">Server Version</button>
+                </div>
+              </div>
+
+              <textarea id="sql-editor" rows="4" placeholder="Enter SQL query (e.g. SELECT * FROM users;)"></textarea>
+              
+              <div class="sql-actions flex-between">
+                <button class="btn btn-primary" onclick="executeCustomSql()">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                  Execute Query
+                </button>
+                <div class="sql-execution-meta" id="sql-meta">Ready</div>
+              </div>
+
+              <div class="sql-result-wrapper">
+                <h4>Query Results</h4>
+                <div class="table-scroll-wrapper" id="sql-result-container">
+                  <div class="empty-state">Output will appear here after executing a query.</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Toast Container -->
+  <div id="toast-container"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
