@@ -22,11 +22,9 @@ services:
     restart: unless-stopped
     depends_on:
       - app
-    # Quick Tunnel Mode (Zero config, generates free *.trycloudflare.com HTTPS URL in container logs):
-    command: tunnel --no-autoupdate --url http://app:3000
-
-    # Note: If you want a permanent custom domain via Cloudflare Zero Trust Dashboard,
-    # comment out the command above, set TUNNEL_TOKEN in your environment, and use:
-    # command: tunnel --no-autoupdate run --token ${TUNNEL_TOKEN}
-    # environment:
-    #   - TUNNEL_TOKEN=${TUNNEL_TOKEN}
+    # Named Tunnel Mode (permanent custom domain via Cloudflare Zero Trust Dashboard):
+    command: tunnel --no-autoupdate run --token ${TUNNEL_TOKEN}
+    environment:
+      - TUNNEL_TOKEN=${TUNNEL_TOKEN}
+    # Quick Tunnel Mode (zero config, generates free *.trycloudflare.com URL) — commented out:
+    # command: tunnel --no-autoupdate --url http://app:3000
