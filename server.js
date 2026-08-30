@@ -1,5 +1,6 @@
 const express = require('express');
 const cors = require('cors');
+const path = require('path');
 const { Pool } = require('pg');
 const { PrismaClient } = require('@prisma/client');
 require('dotenv').config();
@@ -9,7 +10,12 @@ const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.json());
-app.use(express.static('public'));
+app.use(express.static(path.join(__dirname, 'public')));
+
+// Explicit root route serving index.html
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
 
 const connectionString = process.env.DATABASE_URL || 'postgresql://myapp:arial123@192.168.1.40:5432/mydata';
 

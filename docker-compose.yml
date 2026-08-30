@@ -14,9 +14,6 @@ services:
       - PORT=3000
       - DATABASE_URL=${DATABASE_URL:-postgresql://myapp:arial123@192.168.1.40:5432/mydata}
       - NODE_ENV=production
-    volumes:
-      # Optional volume mount for live development file syncing
-      - ./public:/app/public:ro
 
   # Cloudflare Tunnel for Secure Internet Access (Zero Open Ports)
   cloudflared:
