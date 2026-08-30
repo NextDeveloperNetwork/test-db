@@ -14,7 +14,6 @@ RUN npx prisma generate
 # Copy source code
 COPY server.js ./
 COPY public ./public/
-COPY .env ./
 
 EXPOSE 3000
 
