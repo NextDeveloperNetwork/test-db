@@ -11,8 +11,10 @@ COPY prisma ./prisma/
 RUN npm ci
 RUN npx prisma generate
 
-# Copy source code
+# Copy source code & modular directories
 COPY server.js ./
+COPY db ./db/
+COPY routes ./routes/
 COPY public ./public/
 
 EXPOSE 3000
